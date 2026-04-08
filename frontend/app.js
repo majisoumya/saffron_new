@@ -9,16 +9,20 @@ const MAX_CO2 = 2000;
 const MAX_LIGHT = 2000;
 
 function updateGauge(gaugeClass, value, maxVal) {
-    const dasharray = 200; // Expected from CSS
-    let percentage = value / maxVal;
-    if (percentage > 1) percentage = 1;
-    if (percentage < 0) percentage = 0;
-    
-    const offset = dasharray - (percentage * dasharray);
     const fill = document.querySelector(`.${gaugeClass}`);
-    if (fill) {
-        fill.style.strokeDashoffset = offset;
-    }
+    if (!fill) return;
+
+    const dasharray = fill.getTotalLength(); // 🔥 correct length
+
+    value = Number(value);
+
+    let percentage = value / maxVal;
+    percentage = Math.max(0, Math.min(percentage, 1));
+
+    const offset = dasharray * (1 - percentage);
+
+    fill.style.strokeDasharray = dasharray;
+    fill.style.strokeDashoffset = offset;
 }
 
 async function fetchSensorData() {
