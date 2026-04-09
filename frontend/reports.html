@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Reports</title>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4.2">
+    <style>
+        .report-header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .report-header h1 {
+            color: #228b3a;
+            margin-bottom: 5px;
+        }
+        .download-container {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+        }
+        .download-btn {
+            background: #2e3b4e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .download-btn:hover { background: #1e293b; }
+        
+        .report-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .report-grid { grid-template-columns: 1fr; }
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+        }
+        .report-summary-box {
+            background: #e5f6f4;
+            border: 1px solid #bce3d8;
+            padding: 20px;
+            border-radius: 8px;
+            color: #065f46;
+        }
+    </style>
+</head>
+<body>
+    <header class="top-nav">
+        <div class="logo">
+            <i class="fa-brands fa-envira fa-lg"></i>
+            <span>Plant Growth Rate Prediction</span>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="analysis.html">Data Analysis</a>
+            <a href="models.html">Model Settings</a>
+            <a href="reports.html" class="active">Reports</a>
+            <a href="#">Logout</a>
+        </nav>
+    </header>
+
+    <main class="dashboard-container" id="report-content">
+        <div class="report-header fade-in" style="animation-delay: 0.1s;">
+            <h1>Saffron Yield & System Report</h1>
+            <p style="color: #64748b;">Generated dynamically from live telemetry data</p>
+            <div class="download-container" data-html2canvas-ignore="true">
+                <button class="download-btn" onclick="downloadCSV()"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                <button class="download-btn" onclick="downloadPDF()"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+            </div>
+        </div>
+
+        <div class="report-grid">
+            <div class="card fade-in" style="animation-delay: 0.2s;">
+                <h3 style="margin-bottom: 15px;">Executive Summary</h3>
+                <div class="report-summary-box">
+                    <strong>Overall Status:</strong> Optimal<br><br>
+                    The prediction model indicates a sustained growth trajectory aligned with the Phase 1 target. Average ambient deviations are well within the 5% error margin.
+                    Actuators remain largely in automatic mode, mitigating slight afternoon temperature spikes.
+                </div>
+            </div>
+
+            <div class="card fade-in" style="animation-delay: 0.3s;">
+                <h3 style="margin-bottom: 15px;">Recent Telemetry Snapshots</h3>
+                <div style="overflow-x: auto;">
+                    <table id="report-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Temp (°C)</th>
+                                <th>Hum (%)</th>
+                                <th>Light (lux)</th>
+                                <th>Moisture (%)</th>
+                                <th>CO2 (ppm)</th>
+                                <th>Growth (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:8001" : "";
+        
+        async function loadReportData() {
+            try {
+                // Fetch recent logs
+                const activePhase = localStorage.getItem('activePhase') || 'phase1';
+                const response = await fetch(`${API_BASE_URL}/api/sensor_history`);
+                const predictionNode = await fetch(`${API_BASE_URL}/api/history?phase=${activePhase}`);
+                
+                if (response.ok && predictionNode.ok) {
+                    const data = await response.json();
+                    const history = await predictionNode.json();
+                    
+                    const tbody = document.querySelector('#report-table tbody');
+                    tbody.innerHTML = '';
+                    
+                    const maxRows = Math.min(data.length, 20);
+                    let avgTemp = 0, avgHum = 0;
+                    
+                    globalReportData = [];
+
+                    for(let i=0; i<maxRows; i++) {
+                        const r = data[i];
+                        const h = history[i] ? history[i].predicted : "--";
+                        avgTemp += parseFloat(r.temperature);
+                        avgHum += parseFloat(r.humidity);
+                        
+                        // Push to global array for CSV
+                        globalReportData.push([
+                            r.time,
+                            parseFloat(r.temperature).toFixed(1),
+                            parseFloat(r.humidity).toFixed(1),
+                            parseFloat(r.light).toFixed(0),
+                            parseFloat(r.moisture).toFixed(1),
+                            parseFloat(r.co2).toFixed(0),
+                            h
+                        ]);
+                        
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${r.time}</td>
+                            <td>${parseFloat(r.temperature).toFixed(1)}</td>
+                            <td>${parseFloat(r.humidity).toFixed(1)}</td>
+                            <td>${parseFloat(r.light).toFixed(0)}</td>
+                            <td>${parseFloat(r.moisture).toFixed(1)}</td>
+                            <td>${parseFloat(r.co2).toFixed(0)}</td>
+                            <td><span style="color: #228b3a; font-weight: 600;">${h}</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                    }
+                    
+                    if (maxRows > 0) {
+                        avgTemp = parseFloat(avgTemp / maxRows).toFixed(1);
+                        avgHum = parseFloat(avgHum / maxRows).toFixed(1);
+                        const latestGrowth = history[0] ? history[0].predicted : "N/A";
+                        
+                        let statusHtml = `<strong>Overall Status:</strong> Optimal<br><br>`;
+                        statusHtml += `The prediction model indicates a live growth reading of <b>${latestGrowth}%</b>. `;
+                        statusHtml += `Average ambient temperature over the last interval is <b>${avgTemp}°C</b> with humidity at <b>${avgHum}%</b>. `;
+                        
+                        if (avgTemp > 28) {
+                            statusHtml += `<br><br><span style="color:red">Warning: Temperature is above optimal limit. Actuators triggered.</span>`;
+                        } else {
+                            statusHtml += `Data arrays show stable telemetric operations. Automation functions efficiently.`;
+                        }
+                        document.querySelector('.report-summary-box').innerHTML = statusHtml;
+                    }
+                }
+            } catch(e) {
+                console.error("Report data load failed:", e);
+            }
+        }
+
+        let globalReportData = [];
+        
+        function downloadCSV() {
+            if (!globalReportData || globalReportData.length === 0) {
+                alert("No data available to download");
+                return;
+            }
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Time,Temp (°C),Hum (%),Light (lux),Moisture (%),CO2 (ppm),Growth (%)\n";
+            
+            globalReportData.forEach(function(rowArray) {
+               let row = rowArray.join(",");
+               csvContent += row + "\r\n";
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "Saffron_Sensor_Data.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('report-content');
+            
+            // Fix: Elements with 'opacity: 0' from fadeIn animation won't show in PDF
+            // We temporarily force them to be visible
+            const animatedElements = element.querySelectorAll('.fade-in, .card');
+            animatedElements.forEach(el => {
+                el.style.opacity = '1';
+                el.style.transform = 'none';
+            });
+
+            const opt = {
+                margin:       0.5,
+                filename:     'Saffron_Growth_Report.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2,
+                    useCORS: true,
+                    letterRendering: true
+                },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Restore original state if needed, though usually not necessary after download
+                animatedElements.forEach(el => {
+                    el.style.opacity = '';
+                    el.style.transform = '';
+                });
+            });
+        }
+
+        window.addEventListener('load', loadReportData);
+    </script>
+</body>
+</html>

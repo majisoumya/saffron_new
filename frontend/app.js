@@ -100,6 +100,146 @@ async function updateActuators(payload) {
     }
 }
 
+// Function to fetch growth prediction from the API
+async function fetchGrowthPrediction() {
+    const phaseSelector = document.getElementById('phase-selector');
+    if (!phaseSelector) return;
+    const phase = phaseSelector.value;
+    
+    const statusText = document.getElementById('ai-status-text');
+    if (statusText) statusText.innerText = "Analyzing live telemetry...";
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/predict?phase=${phase}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data && !data.error) {
+                const growthRate = data.predicted_growth;
+                document.getElementById('growth-pred-val').innerText = `${growthRate}`;
+                
+                const gaugePath = document.getElementById('ai-gauge-path');
+                if (gaugePath) {
+                    const maxDash = 126;
+                    // Prevent pushing beyond 100 or below 0 visually
+                    const clampedRate = Math.min(Math.max(growthRate, 0), 100);
+                    const offset = maxDash - (maxDash * clampedRate / 100);
+                    gaugePath.style.strokeDashoffset = offset;
+                }
+                
+                if (statusText) {
+                    if (growthRate >= 80) statusText.innerHTML = "Optimal trajectory. Sensor parameters ideal.";
+                    else if (growthRate >= 50) statusText.innerHTML = "Moderate growth. Optimize environment for better yield.";
+                    else statusText.innerHTML = "Growth restricted! Check ambient parameters.";
+                }
+            } else {
+                handleAiError(statusText);
+            }
+        } else {
+            handleAiError(statusText);
+        }
+    } catch (error) {
+        console.error("Error fetching prediction data:", error);
+        handleAiError(statusText);
+    }
+}
+
+let growthChartInstance = null;
+
+async function fetchGrowthHistory() {
+    const phaseSelector = document.getElementById('phase-selector');
+    const phase = phaseSelector ? phaseSelector.value : 'phase1';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/history?phase=${phase}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data && !data.error && data.length > 0) {
+                const labels = data.map(item => item.date);
+                const actualData = data.map(item => item.actual);
+                const predictedData = data.map(item => item.predicted);
+
+                const ctx = document.getElementById('envChart');
+                if (!ctx) return;
+
+                if (growthChartInstance) {
+                    growthChartInstance.data.labels = labels;
+                    growthChartInstance.data.datasets[0].data = actualData;
+                    growthChartInstance.data.datasets[1].data = predictedData;
+                    growthChartInstance.update();
+                } else {
+                    growthChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Actual',
+                                    data: actualData,
+                                    borderColor: '#65a30d',
+                                    backgroundColor: '#65a30d',
+                                    borderWidth: 2,
+                                    pointBackgroundColor: '#65a30d',
+                                    pointRadius: 4,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'Predicted',
+                                    data: predictedData,
+                                    borderColor: '#0284c7',
+                                    backgroundColor: '#0284c7',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    pointBackgroundColor: '#0284c7',
+                                    pointRadius: 4,
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        usePointStyle: true,
+                                        boxWidth: 8
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    suggestedMin: Math.min(...actualData, ...predictedData) - 2,
+                                    suggestedMax: Math.max(...actualData, ...predictedData) + 2,
+                                    grid: {
+                                        color: '#f1f5f9'
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching growth history:", error);
+    }
+}
+
+function handleAiError(statusText) {
+    document.getElementById('growth-pred-val').innerText = `--%`;
+    const gaugePath = document.getElementById('ai-gauge-path');
+    if (gaugePath) gaugePath.style.strokeDashoffset = 126;
+    if (statusText) statusText.innerText = "Sync failure. Retrying connectivity...";
+}
+
 // Global UI state
 let isAutoMode = false;
 
@@ -275,6 +415,27 @@ window.onload = () => {
     fetchActuators();
     
     fetchSensorData();
+    fetchGrowthPrediction();
+    fetchGrowthHistory();
+    
     // Fetch new data every 3 seconds
-    setInterval(fetchSensorData, 3000);
+    setInterval(() => {
+        fetchSensorData();
+        fetchGrowthPrediction();
+    }, 3000);
+
+    const phaseSelector = document.getElementById('phase-selector');
+    if (phaseSelector) {
+        // Load saved phase if available
+        const savedPhase = localStorage.getItem('activePhase');
+        if (savedPhase) {
+            phaseSelector.value = savedPhase;
+        }
+
+        phaseSelector.addEventListener('change', (e) => {
+            localStorage.setItem('activePhase', e.target.value);
+            fetchGrowthPrediction();
+            fetchGrowthHistory();
+        });
+    }
 };

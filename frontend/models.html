@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Settings</title>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4.2">
+    <style>
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .model-card {
+            border-left: 4px solid #228b3a;
+            position: relative;
+            overflow: hidden;
+        }
+        .model-card::after {
+            content: "\f544"; /* Robot icon */
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: -20px;
+            bottom: -20px;
+            font-size: 100px;
+            color: rgba(34, 139, 58, 0.05);
+            z-index: 0;
+            transform: rotate(-15deg);
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+            z-index: 1;
+            position: relative;
+        }
+        .metric-val {
+            font-weight: 600;
+            color: #228b3a;
+        }
+        .active-badge {
+            background: #228b3a;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            float: right;
+        }
+        .btn-retrain {
+            background-color: #2e3b4e;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 15px;
+            width: 100%;
+            z-index: 1;
+            position: relative;
+            transition: background 0.3s;
+        }
+        .btn-retrain:hover { background-color: #1e293b; }
+    </style>
+</head>
+<body>
+    <header class="top-nav">
+        <div class="logo">
+            <i class="fa-brands fa-envira fa-lg"></i>
+            <span>Plant Growth Rate Prediction</span>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="analysis.html">Data Analysis</a>
+            <a href="models.html" class="active">Model Settings</a>
+            <a href="reports.html">Reports</a>
+            <a href="#">Logout</a>
+        </nav>
+    </header>
+
+    <main class="dashboard-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="color: #1e293b;">Machine Learning Models</h2>
+            <button class="btn-retrain" style="width: auto; background-color: #228b3a;" onclick="alert('Retraining all pipeline models. Please wait...')">
+                <i class="fa-solid fa-rotate"></i> Retrain All Models
+            </button>
+        </div>
+
+        <div class="models-grid" id="models-container">
+            <div style="text-align: center; width: 100%; color: #64748b;">Loading Machine Learning Metrics...</div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:8001" : "";
+        
+        async function loadModels() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/metrics`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const container = document.getElementById('models-container');
+                    container.innerHTML = "";
+                    
+                    data.forEach((metric, index) => {
+                        const delay = (index + 1) * 0.1;
+                        let phaseTitle = "Phase " + metric.phase.replace("phase", "");
+                        const activePhase = localStorage.getItem('activePhase') || 'phase1';
+                        let active = metric.phase === activePhase ? `<span class="active-badge">Active</span>` : "";
+                        
+                        container.innerHTML += `
+                        <div class="card model-card fade-in" style="animation-delay: ${delay}s;">
+                            <h3>${phaseTitle} ${active}</h3>
+                            <p style="font-size: 12px; color: #64748b; margin-bottom: 15px;">${metric.model_type}</p>
+                            <div class="metric"><span>Mean Absolute Error:</span> <span class="metric-val">${metric.mae}%</span></div>
+                            <div class="metric"><span>Root Mean Sq Error:</span> <span class="metric-val">${metric.rmse}%</span></div>
+                            <div class="metric"><span>R² Score:</span> <span class="metric-val">${metric.r2}</span></div>
+                            <button class="btn-retrain" onclick="alert('Model update requested!')">Update Configuration</button>
+                        </div>
+                        `;
+                    });
+                }
+            } catch(e) {
+                console.error("Failed to load model metrics:", e);
+                document.getElementById('models-container').innerHTML = "<div style='color:red;'>Failed to load metrics</div>";
+            }
+        }
+        
+        window.addEventListener('load', loadModels);
+    </script>
+</body>
+</html>

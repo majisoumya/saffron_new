@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saffron Data Analysis</title>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4.2">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        @media (max-width: 1024px) {
+            .chart-grid { grid-template-columns: 1fr; }
+        }
+        .full-width { grid-column: 1 / -1; }
+    </style>
+</head>
+<body>
+    <header class="top-nav">
+        <div class="logo">
+            <i class="fa-brands fa-envira fa-lg"></i>
+            <span>Plant Growth Rate Prediction</span>
+        </div>
+        <nav class="nav-links">
+            <a href="index.html">Dashboard</a>
+            <a href="analysis.html" class="active">Data Analysis</a>
+            <a href="models.html">Model Settings</a>
+            <a href="reports.html">Reports</a>
+            <a href="#">Logout</a>
+        </nav>
+    </header>
+
+    <main class="dashboard-container">
+        <h2 style="margin-bottom: 20px; color: #1e293b;">Historical Sensor Data Analysis</h2>
+        
+        <div class="chart-grid">
+            <div class="card fade-in" style="animation-delay: 0.1s;">
+                <h3 style="margin-bottom: 15px;">Temperature & Humidity Trend</h3>
+                <canvas id="tempHumChart"></canvas>
+            </div>
+            
+            <div class="card fade-in" style="animation-delay: 0.2s;">
+                <h3 style="margin-bottom: 15px;">Light & CO2 Quality Trend</h3>
+                <canvas id="lightCo2Chart"></canvas>
+            </div>
+            
+            <div class="card fade-in full-width" style="animation-delay: 0.3s;">
+                <h3 style="margin-bottom: 15px;">Soil Moisture Levels</h3>
+                <canvas id="moistureChart" height="80"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:8001" : "";
+        let tempHumChart, lightCo2Chart, moistureChart;
+
+        async function initCharts() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/sensor_history`);
+                if (response.ok) {
+                    const params = await response.json();
+                    if (!params || params.error) return;
+
+                    const labels = params.map(p => p.time);
+                    const temp = params.map(p => p.temperature);
+                    const hum = params.map(p => p.humidity);
+                    const cool = params.map(p => p.co2);
+                    const light = params.map(p => p.light);
+                    const moist = params.map(p => p.moisture);
+
+                    const commonOptions = {
+                        responsive: true,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: { x: { display: true }, y: { display: true, beginAtZero: false } }
+                    };
+
+                    const ctxTH = document.getElementById('tempHumChart').getContext('2d');
+                    tempHumChart = new Chart(ctxTH, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                { label: 'Temperature (°C)', data: temp, borderColor: '#ef4444', tension: 0.4 },
+                                { label: 'Humidity (%)', data: hum, borderColor: '#3b82f6', tension: 0.4 }
+                            ]
+                        },
+                        options: commonOptions
+                    });
+
+                    const ctxLC = document.getElementById('lightCo2Chart').getContext('2d');
+                    lightCo2Chart = new Chart(ctxLC, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                { label: 'Light (Lux)', data: light, borderColor: '#eab308', tension: 0.4 },
+                                { label: 'CO2 (ppm)', data: cool, borderColor: '#8b5cf6', tension: 0.4 }
+                            ]
+                        },
+                        options: commonOptions
+                    });
+
+                    const ctxM = document.getElementById('moistureChart').getContext('2d');
+                    moistureChart = new Chart(ctxM, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                { label: 'Soil Moisture (%)', data: moist, backgroundColor: '#10b981', borderRadius: 4 }
+                            ]
+                        },
+                        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                    });
+                }
+            } catch(e) {
+                console.error("Failed to load history:", e);
+            }
+        }
+        
+        window.addEventListener('load', initCharts);
+    </script>
+</body>
+</html>
