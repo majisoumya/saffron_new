@@ -52,23 +52,30 @@ async function fetchSensorData() {
                 const connectionStatus = document.getElementById('connection-status');
                 if(connectionStatus) connectionStatus.innerText = "Live Data";
             } else {
-                console.warn("No data in database yet:", data.error);
+                console.warn("Issue fetching data:", data.error);
                 
-                // Clear the default values to show it's actually empty!
-                document.getElementById('val-temp').innerText = "0.0";
-                document.getElementById('val-hum').innerText = "0.0";
-                document.getElementById('val-moist').innerText = "0";
-                document.getElementById('val-air').innerText = "0"; 
-                document.getElementById('val-light').innerText = "0";
-
-                updateGauge('temp-fill', 0, MAX_TEMP);
-                updateGauge('hum-fill', 0, MAX_HUM);
-                updateGauge('moist-fill', 0, MAX_MOIST);
-                updateGauge('air-fill', 0, MAX_CO2);
-                updateGauge('light-fill', 0, MAX_LIGHT);
-
                 const connectionStatus = document.getElementById('connection-status');
-                if(connectionStatus) connectionStatus.innerText = "DB Empty. Turn on ESP32!";
+                
+                // Differentiate between actually empty DB and a backend error/timeout
+                if (data.error === "No data found") {
+                    // Clear the default values to show it's actually empty!
+                    document.getElementById('val-temp').innerText = "0.0";
+                    document.getElementById('val-hum').innerText = "0.0";
+                    document.getElementById('val-moist').innerText = "0";
+                    document.getElementById('val-air').innerText = "0"; 
+                    document.getElementById('val-light').innerText = "0";
+
+                    updateGauge('temp-fill', 0, MAX_TEMP);
+                    updateGauge('hum-fill', 0, MAX_HUM);
+                    updateGauge('moist-fill', 0, MAX_MOIST);
+                    updateGauge('air-fill', 0, MAX_CO2);
+                    updateGauge('light-fill', 0, MAX_LIGHT);
+
+                    if(connectionStatus) connectionStatus.innerText = "DB Empty. Turn on ESP32!";
+                } else {
+                    // It's likely a network fluctuation, timeout, or Supabase error
+                    if(connectionStatus) connectionStatus.innerText = "Network Hiccup / Error...";
+                }
             }
         }
     } catch (error) {
